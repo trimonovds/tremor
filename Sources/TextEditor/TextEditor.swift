@@ -22,10 +22,8 @@ public enum TextEditor {
             render(state: state, key: lastInput)
 
             let input = getch()
-            let action = TextEditorAction(key: input, mode: state.mode)
-            if let action = action {
-                reduceTextEditor(state: &state, action: action)
-            }
+            let action = TextEditorAction.keyPress(key: input)
+            reduceTextEditor(state: &state, action: action)
             lastInput = input
         }
     }
@@ -53,8 +51,6 @@ public enum TextEditor {
         }()
         var statusLine = modeStr
         statusLine.append(" w: \(w), h: \(h), key: \(key)")
-        statusLine.append(" `q` to quit.")
-        statusLine.append(state.text)
         attron(NCURSES.ATTRMask.reversed)
         mvaddstr(h - 2, 0, String(repeating: " ", count: Int(w)))
         mvaddstr(h - 2, 0, statusLine)
@@ -71,55 +67,5 @@ public enum TextEditor {
         default:
             break
         }
-    }
-}
-
-private extension TextEditorAction {
-    init?(key: Int32, mode: Mode) {
-        switch mode {
-        case .normal:
-            switch key {
-            case "q".unsafeASCII32:
-                self = .quit
-            case "k".unsafeASCII32:
-                self = .up
-            case "j".unsafeASCII32:
-                self = .down
-            case "h".unsafeASCII32:
-                self = .left
-            case "l".unsafeASCII32:
-                self = .right
-            case "i".unsafeASCII32:
-                self = .setMode(.insert)
-            case ":".unsafeASCII32:
-                self = .setMode(.command)
-            case 27: // Esc
-                self = .setMode(.normal)
-            default:
-                return nil
-            }
-        case .insert:
-            switch key {
-            case 27: // Esc
-                self = .setMode(.normal)
-            default:
-                self = .insertAppend(char: key)
-            }
-        case .command:
-            switch key {
-            case 27: // Esc
-                self = .setMode(.normal)
-            case 10: // CR
-                self = .commandExec
-            default:
-                self = .commandAppend(char: key)
-            }
-        }
-    }
-}
-
-private extension String {
-    var unsafeASCII32: Int32 {
-        Int32(Character(self).asciiValue!)
     }
 }
