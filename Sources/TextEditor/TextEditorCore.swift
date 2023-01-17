@@ -9,8 +9,8 @@ enum Mode {
 }
 
 struct EditorSize: Equatable {
-    var w: Int
-    var h: Int
+    var w: Int32
+    var h: Int32
 }
 
 struct TextEditorState: Equatable {
@@ -41,6 +41,6 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
     case .quit:
         state.stopped = true
     }
-    state.cursorPos.x = clamp(state.cursorPos.x, from: 0, to: state.area.w - 1)
-    state.cursorPos.y = clamp(state.cursorPos.y, from: 0, to: state.area.h - 1)
+    state.cursorPos.x = clamp(state.cursorPos.x, from: 0, to: Int(state.area.w) - 1)
+    state.cursorPos.y = clamp(state.cursorPos.y, from: 0, to: Int(state.area.h) - 1)
 }

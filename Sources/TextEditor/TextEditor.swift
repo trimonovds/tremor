@@ -12,20 +12,14 @@ public enum TextEditor {
         use_default_colors()
         defer { endwin() }
 
-        var state = TextEditorState(area: EditorSize(w: Int(COLS), h: Int(LINES)))
+        var state = TextEditorState(area: EditorSize(w: COLS, h: LINES))
         var lastInput: Int32 = 0
 
         while !state.stopped {
             erase()
             defer { refresh() }
 
-            render(state: state)
-
-            // TODO: Take new size into account
-            let w = COLS
-            let h = LINES
-
-            renderBottomBar(w: w, h: h, key: lastInput, state: state)
+            render(state: state, key: lastInput)
 
             let input = getch()
             let action = TextEditorAction(key: input)
@@ -36,7 +30,8 @@ public enum TextEditor {
         }
     }
 
-    private static func render(state: TextEditorState) {
+    private static func render(state: TextEditorState, key: Int32) {
+        renderBottomBar(state: state, key: key)
         renderCursor(pos: state.cursorPos)
     }
 
@@ -46,15 +41,17 @@ public enum TextEditor {
         attroff(NCURSES.ATTRMask.reversed)
     }
 
-    private static func renderBottomBar(w: Int32, h: Int32, key: Int32, state: TextEditorState) {
+    private static func renderBottomBar(state: TextEditorState, key: Int32) {
+        let (w, h) = (state.area.w, state.area.h)
         let modeStr: String = {
             switch state.mode {
                 case .normal: return "NOR"
                 case .insert: return "INS"
             }
         }()
-        var bottomBar = modeStr + " `q` to quit."
-        bottomBar.append("\tw: \(w), h: \(h), key: \(key)")
+        var bottomBar = modeStr 
+        bottomBar.append(" w: \(w), h: \(h), key: \(key)")
+        bottomBar.append(" `q` to quit.")
         attron(NCURSES.ATTRMask.reversed)
         mvaddstr(h - 1, 0, String(repeating: " ", count: Int(w)))
         mvaddstr(h - 1, 0, bottomBar)
