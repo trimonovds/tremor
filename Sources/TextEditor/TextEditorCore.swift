@@ -91,8 +91,6 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
             state.mode = .normal // TODO: Cmd Error
         }
     }
-    state.cursorPos.x = clamp(state.cursorPos.x, from: 0, to: Int(state.area.w) - 1)
-    state.cursorPos.y = clamp(state.cursorPos.y, from: 0, to: Int(state.area.h) - 1 - bottomLinesHeight)
 }
 
 private let bottomLinesHeight = 2 // statusLine + cmdLine
