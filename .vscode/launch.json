@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug TextEditor",
+            "program": "${workspaceFolder:TextEditor}/.build/debug/TextEditor",
+            "args": [],
+            "cwd": "${workspaceFolder:TextEditor}",
+            "preLaunchTask": "swift: Build Debug TextEditor"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release TextEditor",
+            "program": "${workspaceFolder:TextEditor}/.build/release/TextEditor",
+            "args": [],
+            "cwd": "${workspaceFolder:TextEditor}",
+            "preLaunchTask": "swift: Build Release TextEditor"
+        }
+    ]
+}
