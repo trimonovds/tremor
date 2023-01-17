@@ -22,7 +22,7 @@ public enum TextEditor {
             render(state: state, key: lastInput)
 
             let input = getch()
-            let action = TextEditorAction(key: input)
+            let action = TextEditorAction(key: input, mode: state.mode)
             if let action = action {
                 reduceTextEditor(state: &state, action: action)
             }
@@ -31,7 +31,8 @@ public enum TextEditor {
     }
 
     private static func render(state: TextEditorState, key: Int32) {
-        renderBottomBar(state: state, key: key)
+        renderStatusLine(state: state, key: key)
+        renderCommandLine(state: state)
         renderCursor(pos: state.cursorPos)
     }
 
@@ -41,43 +42,78 @@ public enum TextEditor {
         attroff(NCURSES.ATTRMask.reversed)
     }
 
-    private static func renderBottomBar(state: TextEditorState, key: Int32) {
+    private static func renderStatusLine(state: TextEditorState, key: Int32) {
         let (w, h) = (state.area.w, state.area.h)
         let modeStr: String = {
             switch state.mode {
-                case .normal: return "NOR"
-                case .insert: return "INS"
+            case .normal: return "NOR"
+            case .insert: return "INS"
+            case .command: return "CMD"
             }
         }()
-        var bottomBar = modeStr 
-        bottomBar.append(" w: \(w), h: \(h), key: \(key)")
-        bottomBar.append(" `q` to quit.")
+        var statusLine = modeStr
+        statusLine.append(" w: \(w), h: \(h), key: \(key)")
+        statusLine.append(" `q` to quit.")
+        statusLine.append(state.text)
         attron(NCURSES.ATTRMask.reversed)
-        mvaddstr(h - 1, 0, String(repeating: " ", count: Int(w)))
-        mvaddstr(h - 1, 0, bottomBar)
+        mvaddstr(h - 2, 0, String(repeating: " ", count: Int(w)))
+        mvaddstr(h - 2, 0, statusLine)
         attroff(NCURSES.ATTRMask.reversed)
+    }
+
+    private static func renderCommandLine(state: TextEditorState) {
+        let (_, h) = (state.area.w, state.area.h)
+        switch state.mode {
+        case .command:
+            var commandLine = ":"
+            commandLine.append("\(state.commandText)")
+            mvaddstr(h - 1, 0, commandLine)
+        default:
+            break
+        }
     }
 }
 
 private extension TextEditorAction {
-    init?(key: Int32) {
-        switch key {
-        case "q".unsafeASCII32:
-            self = .quit
-        case  "k".unsafeASCII32:
-            self = .up
-        case  "j".unsafeASCII32:
-            self = .down
-        case  "h".unsafeASCII32:
-            self = .left
-        case  "l".unsafeASCII32:
-            self = .right
-        // case "y".unsafeASCII32:
-        //     self = .copy
-        // case "p".unsafeASCII32:
-        //     self = .paste
-        default:
-            return nil
+    init?(key: Int32, mode: Mode) {
+        switch mode {
+        case .normal:
+            switch key {
+            case "q".unsafeASCII32:
+                self = .quit
+            case "k".unsafeASCII32:
+                self = .up
+            case "j".unsafeASCII32:
+                self = .down
+            case "h".unsafeASCII32:
+                self = .left
+            case "l".unsafeASCII32:
+                self = .right
+            case "i".unsafeASCII32:
+                self = .setMode(.insert)
+            case ":".unsafeASCII32:
+                self = .setMode(.command)
+            case 27: // Esc
+                self = .setMode(.normal)
+            default:
+                return nil
+            }
+        case .insert:
+            switch key {
+            case 27: // Esc
+                self = .setMode(.normal)
+            default:
+                self = .insertAppend(char: key)
+            }
+        case .command:
+            switch key {
+            case 27: // Esc
+                self = .setMode(.normal)
+            case 10: // CR
+                self = .commandExec
+            default:
+                self = .commandAppend(char: key)
+            }
         }
     }
 }
