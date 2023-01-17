@@ -8,9 +8,15 @@ enum Mode {
     case insert
 }
 
+struct EditorSize: Equatable {
+    var w: Int
+    var h: Int
+}
+
 struct TextEditorState: Equatable {
     var cursorPos: CursorPosition = CursorPosition(x: 0, y: 0)
     var mode: Mode = .normal
+    var area: EditorSize
     var stopped = false
 }
 
@@ -35,4 +41,6 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
     case .quit:
         state.stopped = true
     }
+    state.cursorPos.x = clamp(state.cursorPos.x, from: 0, to: state.area.w - 1)
+    state.cursorPos.y = clamp(state.cursorPos.y, from: 0, to: state.area.h - 1)
 }

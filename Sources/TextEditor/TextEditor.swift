@@ -12,24 +12,21 @@ public enum TextEditor {
         use_default_colors()
         defer { endwin() }
 
-        var state = TextEditorState()
+        var state = TextEditorState(area: EditorSize(w: Int(COLS), h: Int(LINES)))
         var lastInput: Int32 = 0
 
         while !state.stopped {
             erase()
             defer { refresh() }
 
-            // Read evn
+            render(state: state)
+
+            // TODO: Take new size into account
             let w = COLS
             let h = LINES
 
-            // Render state
-            render(state: state)
-
-            // Render bottom bar
             renderBottomBar(w: w, h: h, key: lastInput, state: state)
 
-            // Handle input
             let input = getch()
             let action = TextEditorAction(key: input)
             if let action = action {
