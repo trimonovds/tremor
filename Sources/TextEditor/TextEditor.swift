@@ -29,9 +29,16 @@ public enum TextEditor {
     }
 
     private static func render(state: TextEditorState, key: Int32) {
+        renderBuffer(state.bufferLines)
         renderStatusLine(state: state, key: key)
         renderCommandLine(state: state)
         renderCursor(pos: state.cursorPos)
+    }
+
+    private static func renderBuffer(_ bufferLines: [String]) {
+        for el in bufferLines.enumerated() {
+            mvaddstr(Int32(el.offset), 0, el.element)
+        }
     }
 
     private static func renderCursor(pos: CursorPosition) {

@@ -15,10 +15,10 @@ struct EditorSize: Equatable {
 }
 
 struct TextEditorState: Equatable {
-    var cursorPos: CursorPosition = .init(x: 0, y: 0)
     var mode: Mode = .normal
     var area: EditorSize
-    var text: String = ""
+    var bufferLines: [String] = [""]
+    var cursorPos: CursorPosition = .init(x: 0, y: 0)
     var commandText: String = ""
     var stopped = false
 }
@@ -36,6 +36,7 @@ enum TextEditorCommand {
     case setMode(Mode)
     case insertAppend(char: String)
     case insertRemoveLast
+    case insertCR
     case commandAppend(char: String)
     case commandRemoveLast
     case commandExec
@@ -44,15 +45,20 @@ enum TextEditorCommand {
 func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
     guard case .keyPress(let key) = action else { return }
     guard let command = TextEditorCommand(key: key, mode: state.mode) else { return }
+    let line = state.bufferLines[state.cursorPos.y]
     switch command {
     case .up:
-        state.cursorPos.y -= 1
+        let newY = clamp(state.cursorPos.y - 1, from: 0, to: state.bufferLines.count - 1) 
+        let newLine = state.bufferLines[newY]
+        state.cursorPos = CursorPosition(x: min(newLine.count, state.cursorPos.x), y: newY)
     case .down:
-        state.cursorPos.y += 1
+        let newY = clamp(state.cursorPos.y + 1, from: 0, to: state.bufferLines.count - 1) 
+        let newLine = state.bufferLines[newY]
+        state.cursorPos = CursorPosition(x: min(newLine.count, state.cursorPos.x), y: newY)
     case .left:
-        state.cursorPos.x -= 1
+        state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1) 
     case .right:
-        state.cursorPos.x += 1
+        state.cursorPos.x = clamp(state.cursorPos.x + 1, from: 0, to: line.count - 1) 
     case .quit:
         state.stopped = true
     case let .setMode(mode):
@@ -60,15 +66,22 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
         state.commandText = ""
     case let .insertAppend(text):
         assert(state.mode == .insert)
-        state.text += text
+        state.bufferLines[state.cursorPos.y] = line + text
+        state.cursorPos.x += text.count
     case .insertRemoveLast:
         assert(state.mode == .insert)
-        state.text.removeLast()
+        guard !state.bufferLines[state.cursorPos.y].isEmpty else { break }
+        state.bufferLines[state.cursorPos.y].removeLast()
+        state.cursorPos.x -= 1 
+    case .insertCR:
+        state.bufferLines.append("")
+        state.cursorPos = CursorPosition(x: 0, y: state.cursorPos.y + 1)
     case let .commandAppend(text):
         assert(state.mode == .command)
         state.commandText += text
     case .commandRemoveLast:
         assert(state.mode == .command)
+        guard !state.commandText.isEmpty else { break }
         state.commandText.removeLast()
     case .commandExec:
         assert(state.mode == .command)
@@ -79,8 +92,10 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
         }
     }
     state.cursorPos.x = clamp(state.cursorPos.x, from: 0, to: Int(state.area.w) - 1)
-    state.cursorPos.y = clamp(state.cursorPos.y, from: 0, to: Int(state.area.h) - 1)
+    state.cursorPos.y = clamp(state.cursorPos.y, from: 0, to: Int(state.area.h) - 1 - bottomLinesHeight)
 }
+
+private let bottomLinesHeight = 2 // statusLine + cmdLine
 
 private extension TextEditorCommand {
     init?(key: Int32, mode: Mode) {
@@ -110,8 +125,10 @@ private extension TextEditorCommand {
             switch key {
             case 27: // Esc
                 self = .setMode(.normal)
-            case 263: // Backspace
+            case 127: // Backspace
                 self = .insertRemoveLast
+            case 10: // CR
+                self = .insertCR
             default:
                 self = .insertAppend(char: "\(UnicodeScalar(UInt32(key))!)")
             }
@@ -119,7 +136,7 @@ private extension TextEditorCommand {
             switch key {
             case 27: // Esc
                 self = .setMode(.normal)
-            case 263: // Backspace
+            case 127: // Backspace
                 self = .commandRemoveLast
             case 10: // CR
                 self = .commandExec
