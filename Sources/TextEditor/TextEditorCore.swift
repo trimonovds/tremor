@@ -33,57 +33,80 @@ enum TextEditorCommand {
     case left
     case right
     case quit
+    case norDelete
     case setMode(Mode)
-    case insertAppend(char: String)
-    case insertRemoveLast
-    case insertCR
-    case commandAppend(char: String)
-    case commandRemoveLast
-    case commandExec
+    case insInsert(char: String)
+    case insRemoveLast
+    case insCR
+    case cmdAppend(char: String)
+    case cmdRemoveLast
+    case cmdExec
 }
 
 func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
-    guard case .keyPress(let key) = action else { return }
+    guard case let .keyPress(key) = action else { return }
     guard let command = TextEditorCommand(key: key, mode: state.mode) else { return }
-    let line = state.bufferLines[state.cursorPos.y]
     switch command {
     case .up:
-        let newY = clamp(state.cursorPos.y - 1, from: 0, to: state.bufferLines.count - 1) 
+        let newY = clamp(state.cursorPos.y - 1, from: 0, to: state.bufferLines.count - 1)
         let newLine = state.bufferLines[newY]
         state.cursorPos = CursorPosition(x: min(newLine.count, state.cursorPos.x), y: newY)
     case .down:
-        let newY = clamp(state.cursorPos.y + 1, from: 0, to: state.bufferLines.count - 1) 
+        let newY = clamp(state.cursorPos.y + 1, from: 0, to: state.bufferLines.count - 1)
         let newLine = state.bufferLines[newY]
         state.cursorPos = CursorPosition(x: min(newLine.count, state.cursorPos.x), y: newY)
     case .left:
-        state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1) 
+        let line = state.bufferLines[state.cursorPos.y]
+        state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1)
     case .right:
-        state.cursorPos.x = clamp(state.cursorPos.x + 1, from: 0, to: line.count - 1) 
+        let line = state.bufferLines[state.cursorPos.y]
+        state.cursorPos.x = clamp(state.cursorPos.x + 1, from: 0, to: line.count - 1)
+    case .norDelete:
+        assert(state.mode == .normal)
+        guard !state.bufferLines[state.cursorPos.y].isEmpty else { break }
+        let line = state.bufferLines[state.cursorPos.y]
+        let index = line.index(line.startIndex, offsetBy: state.cursorPos.x)
+        state.bufferLines[state.cursorPos.y].remove(at: index)
+
+        let lineAfter = state.bufferLines[state.cursorPos.y]
+        if lineAfter.index(line.startIndex, offsetBy: state.cursorPos.x) == lineAfter.endIndex {
+            state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: lineAfter.count - 1)
+        }
     case .quit:
         state.stopped = true
     case let .setMode(mode):
+        let line = state.bufferLines[state.cursorPos.y]
         state.mode = mode
+        switch mode {
+        case .normal:
+            state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1)
+        case .command, .insert: 
+            break
+        }
         state.commandText = ""
-    case let .insertAppend(text):
+    case let .insInsert(text):
         assert(state.mode == .insert)
-        state.bufferLines[state.cursorPos.y] = line + text
-        state.cursorPos.x += text.count
-    case .insertRemoveLast:
+        let line = state.bufferLines[state.cursorPos.y]
+        let index = line.index(line.startIndex, offsetBy: state.cursorPos.x)
+        state.bufferLines[state.cursorPos.y].insert(contentsOf: text, at: index)
+        state.cursorPos.x = state.cursorPos.x + 1
+    case .insRemoveLast:
         assert(state.mode == .insert)
-        guard !state.bufferLines[state.cursorPos.y].isEmpty else { break }
+        let line = state.bufferLines[state.cursorPos.y]
+        guard !line.isEmpty else { break }
         state.bufferLines[state.cursorPos.y].removeLast()
-        state.cursorPos.x -= 1 
-    case .insertCR:
+        state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1)
+    case .insCR:
         state.bufferLines.append("")
         state.cursorPos = CursorPosition(x: 0, y: state.cursorPos.y + 1)
-    case let .commandAppend(text):
+    case let .cmdAppend(text):
         assert(state.mode == .command)
         state.commandText += text
-    case .commandRemoveLast:
+    case .cmdRemoveLast:
         assert(state.mode == .command)
         guard !state.commandText.isEmpty else { break }
         state.commandText.removeLast()
-    case .commandExec:
+    case .cmdExec:
         assert(state.mode == .command)
         if state.commandText == "q" {
             state.stopped = true
@@ -110,6 +133,8 @@ private extension TextEditorCommand {
                 self = .left
             case "l".unsafeASCII32:
                 self = .right
+            case "x".unsafeASCII32:
+                self = .norDelete
             case "i".unsafeASCII32:
                 self = .setMode(.insert)
             case ":".unsafeASCII32:
@@ -123,23 +148,23 @@ private extension TextEditorCommand {
             switch key {
             case 27: // Esc
                 self = .setMode(.normal)
-            case 127: // Backspace
-                self = .insertRemoveLast
+            case 263: // Backspace
+                self = .insRemoveLast
             case 10: // CR
-                self = .insertCR
+                self = .insCR
             default:
-                self = .insertAppend(char: "\(UnicodeScalar(UInt32(key))!)")
+                self = .insInsert(char: "\(UnicodeScalar(UInt32(key))!)")
             }
         case .command:
             switch key {
             case 27: // Esc
                 self = .setMode(.normal)
-            case 127: // Backspace
-                self = .commandRemoveLast
+            case 263: // Backspace
+                self = .cmdRemoveLast
             case 10: // CR
-                self = .commandExec
+                self = .cmdExec
             default:
-                self = .commandAppend(char: "\(UnicodeScalar(UInt32(key))!)")
+                self = .cmdAppend(char: "\(UnicodeScalar(UInt32(key))!)")
             }
         }
     }
