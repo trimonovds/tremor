@@ -34,6 +34,8 @@ enum TextEditorCommand {
     case right
     case quit
     case norDelete
+    case norNewLineBelow
+    case norNewLineAbove
     case setMode(Mode)
     case insInsert(char: String)
     case insRemoveLast
@@ -50,11 +52,11 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
     case .up:
         let newY = clamp(state.cursorPos.y - 1, from: 0, to: state.bufferLines.count - 1)
         let newLine = state.bufferLines[newY]
-        state.cursorPos = CursorPosition(x: min(newLine.count, state.cursorPos.x), y: newY)
+        state.cursorPos = CursorPosition(x: min(newLine.count - 1, state.cursorPos.x), y: newY)
     case .down:
         let newY = clamp(state.cursorPos.y + 1, from: 0, to: state.bufferLines.count - 1)
         let newLine = state.bufferLines[newY]
-        state.cursorPos = CursorPosition(x: min(newLine.count, state.cursorPos.x), y: newY)
+        state.cursorPos = CursorPosition(x: min(newLine.count - 1, state.cursorPos.x), y: newY)
     case .left:
         let line = state.bufferLines[state.cursorPos.y]
         state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1)
@@ -72,14 +74,29 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
         if lineAfter.index(line.startIndex, offsetBy: state.cursorPos.x) == lineAfter.endIndex {
             state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: lineAfter.count - 1)
         }
+    case .norNewLineBelow:
+        assert(state.mode == .normal)
+        state.bufferLines.insert("", at: state.cursorPos.y + 1)
+        state.cursorPos.y += 1
+        state.cursorPos.x = 0
+        state.mode = .insert
+    case .norNewLineAbove:
+        assert(state.mode == .normal)
+        let newLineIndex = max(0, state.cursorPos.y)
+        state.bufferLines.insert("", at: newLineIndex)
+        state.cursorPos.y = newLineIndex
+        state.cursorPos.x = 0
+        state.mode = .insert
     case .quit:
         state.stopped = true
     case let .setMode(mode):
-        let line = state.bufferLines[state.cursorPos.y]
         state.mode = mode
         switch mode {
         case .normal:
-            state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1)
+            let line = state.bufferLines[state.cursorPos.y]
+            if line.index(line.startIndex, offsetBy: state.cursorPos.x) == line.endIndex {
+                state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1)
+            }
         case .command, .insert: 
             break
         }
@@ -135,6 +152,10 @@ private extension TextEditorCommand {
                 self = .right
             case "x".unsafeASCII32:
                 self = .norDelete
+            case "o".unsafeASCII32:
+                self = .norNewLineBelow
+            case "O".unsafeASCII32:
+                self = .norNewLineAbove
             case "i".unsafeASCII32:
                 self = .setMode(.insert)
             case ":".unsafeASCII32:
