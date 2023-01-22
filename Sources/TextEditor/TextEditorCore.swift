@@ -36,6 +36,9 @@ enum TextEditorCommand {
     case norDelete
     case norNewLineBelow
     case norNewLineAbove
+    case norInsertAfterCursor
+    case norInsertAtEnd
+    case norInsertAtStart
     case setMode(Mode)
     case insInsert(char: String)
     case insRemoveLast
@@ -85,6 +88,19 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
         let newLineIndex = max(0, state.cursorPos.y)
         state.bufferLines.insert("", at: newLineIndex)
         state.cursorPos.y = newLineIndex
+        state.cursorPos.x = 0
+        state.mode = .insert
+    case .norInsertAfterCursor:
+        assert(state.mode == .normal)
+        state.cursorPos.x = state.cursorPos.x + 1
+        state.mode = .insert
+    case .norInsertAtEnd:
+        assert(state.mode == .normal)
+        let line = state.bufferLines[state.cursorPos.y]
+        state.cursorPos.x = line.count 
+        state.mode = .insert
+    case .norInsertAtStart:
+        assert(state.mode == .normal)
         state.cursorPos.x = 0
         state.mode = .insert
     case .quit:
@@ -156,6 +172,12 @@ private extension TextEditorCommand {
                 self = .norNewLineBelow
             case "O".unsafeASCII32:
                 self = .norNewLineAbove
+            case "a".unsafeASCII32:
+                self = .norInsertAfterCursor
+            case "A".unsafeASCII32:
+                self = .norInsertAtEnd
+            case "I".unsafeASCII32:
+                self = .norInsertAtStart
             case "i".unsafeASCII32:
                 self = .setMode(.insert)
             case ":".unsafeASCII32:
