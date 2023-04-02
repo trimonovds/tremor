@@ -22,8 +22,9 @@ public enum TextEditor {
             render(state: state, key: lastInput)
 
             let input = getch()
-            let action = TextEditorAction.keyPress(key: input)
-            reduceTextEditor(state: &state, action: action)
+            if let action = TextEditorAction(key: input, mode: state.mode) {
+                reduceTextEditor(state: &state, action: action)
+            }
             lastInput = input
         }
     }
