@@ -26,7 +26,7 @@ struct TextEditorState: Equatable {
 enum TextEditorAction {
     enum Insert {
         case insert(char: String)
-        case removeLast
+        case remove
         case cr
         case setNormalMode
     }
@@ -66,10 +66,11 @@ func reduceInsertMode(state: inout TextEditorState, action: TextEditorAction.Ins
         let index = line.index(line.startIndex, offsetBy: state.cursorPos.x)
         state.bufferLines[state.cursorPos.y].insert(contentsOf: char, at: index)
         state.cursorPos.x = state.cursorPos.x + 1
-    case .removeLast:
+    case .remove:
         let line = state.bufferLines[state.cursorPos.y]
-        guard !line.isEmpty else { break }
-        state.bufferLines[state.cursorPos.y].removeLast()
+        guard !line.isEmpty, state.cursorPos.x > 0 else { break }
+        let index = line.index(line.startIndex, offsetBy: state.cursorPos.x - 1)
+        state.bufferLines[state.cursorPos.y].remove(at: index)
         state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1)
     case .cr:
         state.bufferLines.append("")
@@ -100,8 +101,8 @@ private func reduceNormalMode(state: inout TextEditorState, action: TextEditorAc
         let line = state.bufferLines[state.cursorPos.y]
         state.cursorPos.x = clamp(state.cursorPos.x + 1, from: 0, to: line.count - 1)
     case .delete:
-        guard !state.bufferLines[state.cursorPos.y].isEmpty else { break }
         let line = state.bufferLines[state.cursorPos.y]
+        guard !line.isEmpty else { break }
         let index = line.index(line.startIndex, offsetBy: state.cursorPos.x)
         state.bufferLines[state.cursorPos.y].remove(at: index)
 
@@ -217,7 +218,7 @@ extension TextEditorAction {
             case 27: // Esc
                 self = .insert(.setNormalMode)
             case 263: // Backspace
-                self = .insert(.removeLast)
+                self = .insert(.remove)
             case 10: // CR
                 self = .insert(.cr)
             default:
