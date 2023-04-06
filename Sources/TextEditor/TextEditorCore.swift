@@ -59,7 +59,7 @@ enum TextEditorAction {
     case command(Command)
 }
 
-func reduceInsertMode(state: inout TextEditorState, action: TextEditorAction.Insert) {
+private func reduceInsertMode(state: inout TextEditorState, action: TextEditorAction.Insert) {
     switch action {
     case let .insert(char):
         let line = state.bufferLines[state.cursorPos.y]
