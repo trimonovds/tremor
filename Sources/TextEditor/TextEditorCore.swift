@@ -73,8 +73,24 @@ private func reduceInsertMode(state: inout TextEditorState, action: TextEditorAc
         state.bufferLines[state.cursorPos.y].remove(at: index)
         state.cursorPos.x = clamp(state.cursorPos.x - 1, from: 0, to: line.count - 1)
     case .cr:
-        state.bufferLines.append("")
-        state.cursorPos = CursorPosition(x: 0, y: state.cursorPos.y + 1)
+        let line = state.bufferLines[state.cursorPos.y]
+        switch state.cursorPos.x {
+        case 0:
+            let newLineIndex = max(0, state.cursorPos.y)
+            state.bufferLines.insert("", at: newLineIndex)
+            state.cursorPos.y = newLineIndex + 1
+        case line.count:
+            let newLineIndex = state.cursorPos.y + 1
+            state.bufferLines.insert("", at: newLineIndex)
+            state.cursorPos = CursorPosition(x: 0, y: newLineIndex)
+        default: 
+            let index = line.index(line.startIndex, offsetBy: state.cursorPos.x)
+            let newLine = String(line[index...])
+            let newLineIndex = state.cursorPos.y + 1
+            state.bufferLines.insert(newLine, at: newLineIndex)
+            state.bufferLines[state.cursorPos.y].removeSubrange(index...)
+            state.cursorPos = CursorPosition(x: 0, y: newLineIndex)
+        }
     case .setNormalMode:
         state.mode = .normal
         let line = state.bufferLines[state.cursorPos.y]
@@ -122,7 +138,8 @@ private func reduceNormalMode(state: inout TextEditorState, action: TextEditorAc
         state.cursorPos.x = 0
         state.mode = .insert
     case .insertAfterCursor:
-        state.cursorPos.x = state.cursorPos.x + 1
+        let line = state.bufferLines[state.cursorPos.y]
+        state.cursorPos.x = min(line.count, state.cursorPos.x + 1)
         state.mode = .insert
     case .insertAtEnd:
         let line = state.bufferLines[state.cursorPos.y]
