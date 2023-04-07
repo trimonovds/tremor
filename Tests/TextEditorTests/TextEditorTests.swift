@@ -10,6 +10,50 @@ final class TextEditorTests: XCTestCase {
         )
     }
 
+    func testNormalModeInsertAfterCursor() {
+        // insert after cursor in the middle of the line
+        assertReduce(
+            state: TextEditorState(
+                area: EditorSize(w: 300, h: 300), 
+                bufferLines: ["asdfaqwer", "mnsndfbqwer"], 
+                cursorPos: CursorPosition(x: 5, y: 0)
+            ), 
+            action: .normal(.insertAfterCursor), 
+            modification: { 
+                $0.mode = .insert 
+                $0.cursorPos = CursorPosition(x: 6, y: 0) 
+            }
+        )
+
+        // insert after cursor at the beginning of the line
+        assertReduce(
+            state: TextEditorState(
+                area: EditorSize(w: 300, h: 300), 
+                bufferLines: ["asdfaqwer", "mnsndfbqwer"], 
+                cursorPos: CursorPosition(x: 0, y: 0)
+            ), 
+            action: .normal(.insertAfterCursor), 
+            modification: { 
+                $0.mode = .insert 
+                $0.cursorPos = CursorPosition(x: 1, y: 0) 
+            }
+        )
+
+        // insert after cursor at the end of the line
+        assertReduce(
+            state: TextEditorState(
+                area: EditorSize(w: 300, h: 300), 
+                bufferLines: ["asdfaqwer", "mnsndfbqwer"], 
+                cursorPos: CursorPosition(x: 9, y: 0)
+            ), 
+            action: .normal(.insertAfterCursor), 
+            modification: { 
+                $0.mode = .insert 
+                $0.cursorPos = CursorPosition(x: 9, y: 0) 
+            }
+        )
+    }
+
     func testInsertModeInsert() {
         // inset in the middle of the line
         assertReduce(
