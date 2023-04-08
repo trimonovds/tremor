@@ -45,6 +45,8 @@ enum TextEditorAction {
         case setInsertMode
         case setCommandMode
         case quit
+        case jumpWordForward
+        case jumpWordBackward
     }
 
     enum Command {
@@ -83,7 +85,7 @@ private func reduceInsertMode(state: inout TextEditorState, action: TextEditorAc
             let newLineIndex = state.cursorPos.y + 1
             state.bufferLines.insert("", at: newLineIndex)
             state.cursorPos = CursorPosition(x: 0, y: newLineIndex)
-        default: 
+        default:
             let index = line.index(line.startIndex, offsetBy: state.cursorPos.x)
             let newLine = String(line[index...])
             let newLineIndex = state.cursorPos.y + 1
@@ -100,8 +102,34 @@ private func reduceInsertMode(state: inout TextEditorState, action: TextEditorAc
     }
 }
 
+private func findCursorPositionOfNextWordStart(lines: [String], cursorPosition: CursorPosition) -> CursorPosition {
+    let line = lines[cursorPosition.y]
+    let index = line.index(line.startIndex, offsetBy: cursorPosition.x)
+    if let firstWhitespace = line[index...].firstIndex(where: { $0.isWhitespace }) {
+        let firstWordAfterWhitespace = line[firstWhitespace...].firstIndex(where: { !$0.isWhitespace })
+        if let firstWordAfterWhitespace = firstWordAfterWhitespace {
+            return CursorPosition(x: line.distance(from: line.startIndex, to: firstWordAfterWhitespace), y: cursorPosition.y)
+        } else {
+            let nextLineIndex = cursorPosition.y + 1
+            guard nextLineIndex < lines.count else { return cursorPosition }
+            return findCursorPositionOfNextWordStart(lines: lines, cursorPosition: CursorPosition(x: 0, y: nextLineIndex))
+        }
+    } else {
+        let nextLineIndex = cursorPosition.y + 1
+        guard nextLineIndex < lines.count else { return cursorPosition }
+        return findCursorPositionOfNextWordStart(lines: lines, cursorPosition: CursorPosition(x: 0, y: nextLineIndex))
+    }
+}
+
 private func reduceNormalMode(state: inout TextEditorState, action: TextEditorAction.Normal) {
     switch action {
+    case .jumpWordForward:
+        state.cursorPos = findCursorPositionOfNextWordStart(
+            lines: state.bufferLines, 
+            cursorPosition: state.cursorPos
+        )
+    case .jumpWordBackward:
+        break // TODO
     case .up:
         let newY = clamp(state.cursorPos.y - 1, from: 0, to: state.bufferLines.count - 1)
         let newLine = state.bufferLines[newY]
@@ -146,7 +174,9 @@ private func reduceNormalMode(state: inout TextEditorState, action: TextEditorAc
         state.cursorPos.x = line.count
         state.mode = .insert
     case .insertAtStart:
-        state.cursorPos.x = 0
+        let line = state.bufferLines[state.cursorPos.y]
+        let firstNonWhitespaceIndex = line.firstIndex(where: { !$0.isWhitespace }) ?? line.endIndex
+        state.cursorPos.x = line.distance(from: line.startIndex, to: firstNonWhitespaceIndex)
         state.mode = .insert
     case .setInsertMode:
         state.mode = .insert
@@ -201,6 +231,10 @@ extension TextEditorAction {
         switch mode {
         case .normal:
             switch key {
+            case "w".unsafeASCII32:
+                self = .normal(.jumpWordForward)
+            case "b".unsafeASCII32:
+                self = .normal(.jumpWordBackward)
             case "q".unsafeASCII32:
                 self = .normal(.quit)
             case "k".unsafeASCII32:

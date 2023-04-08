@@ -3,6 +3,30 @@ import Foundation
 
 @main
 public enum TextEditor {
+    private static func parseCommandLine() -> TextEditorState {
+        let args = CommandLine.arguments
+        switch args.count {
+        case 1:
+            return TextEditorState(
+                area: EditorSize(w: COLS, h: LINES), 
+                bufferLines: [""]
+            )
+        case 2:
+            let path = args[1]
+            let url = URL(fileURLWithPath: path)
+            let content = try! String(contentsOf: url)
+            let lines = content.split(separator: "\n").map { String($0) }
+            return TextEditorState(
+                area: EditorSize(w: COLS, h: LINES), 
+                bufferLines: lines
+            )
+        default: 
+            print("Usage: \(args[0]) <file>")
+            exit(1)
+        }
+    }
+    
+
     public static func main() {
         setlocale(LC_CTYPE, "en_US.UTF-8")
         initscr()
@@ -12,7 +36,7 @@ public enum TextEditor {
         use_default_colors()
         defer { endwin() }
 
-        var state = TextEditorState(area: EditorSize(w: COLS, h: LINES))
+        var state = parseCommandLine() 
         var lastInput: Int32 = 0
 
         while !state.stopped {
