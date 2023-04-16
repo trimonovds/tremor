@@ -199,7 +199,7 @@ final class TextEditorTests: XCTestCase {
             state: TextEditorState(
                 mode: .normal,
                 area: EditorSize(w: 300, h: 300),
-                bufferLines: ["fs ", "uio"],
+                bufferLines: ["fs ", "uio "],
                 cursorPos: CursorPosition(x: 0, y: 0)
             ),
             action: .normal(.jumpWordForward),

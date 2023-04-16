@@ -1,3 +1,5 @@
+import Darwin.ncurses
+
 struct CursorPosition: Equatable {
     var x: Int
     var y: Int
@@ -14,6 +16,20 @@ struct EditorSize: Equatable {
     var h: Int32
 }
 
+struct Picker: Equatable {
+    var text: String
+    var items: [String]
+
+    var filteredItems: [String] {
+        guard !text.isEmpty else { return items }
+        return items.filter { $0.contains(text) }
+    }
+}
+
+enum FloatingPanel: Equatable {
+    case filePicker(Picker)
+}
+
 struct TextEditorState: Equatable {
     var mode: Mode = .normal
     var area: EditorSize
@@ -21,6 +37,7 @@ struct TextEditorState: Equatable {
     var cursorPos: CursorPosition = .init(x: 0, y: 0)
     var commandText: String = ""
     var stopped = false
+    var floatingPanel: FloatingPanel?
 }
 
 enum TextEditorAction {
@@ -56,9 +73,16 @@ enum TextEditorAction {
         case setNormalMode
     }
 
+    enum FilePicker {
+        case append(char: String)
+        case removeLast
+    }
+
     case insert(Insert)
     case normal(Normal)
     case command(Command)
+    case toggleFilePicker
+    case filePicker(FilePicker)
 }
 
 private func reduceInsertMode(state: inout TextEditorState, action: TextEditorAction.Insert) {
@@ -102,34 +126,18 @@ private func reduceInsertMode(state: inout TextEditorState, action: TextEditorAc
     }
 }
 
-private func findCursorPositionOfNextWordStart(lines: [String], cursorPosition: CursorPosition) -> CursorPosition {
-    let line = lines[cursorPosition.y]
-    let index = line.index(line.startIndex, offsetBy: cursorPosition.x)
-    if let firstWhitespace = line[index...].firstIndex(where: { $0.isWhitespace }) {
-        let firstWordAfterWhitespace = line[firstWhitespace...].firstIndex(where: { !$0.isWhitespace })
-        if let firstWordAfterWhitespace = firstWordAfterWhitespace {
-            return CursorPosition(x: line.distance(from: line.startIndex, to: firstWordAfterWhitespace), y: cursorPosition.y)
-        } else {
-            let nextLineIndex = cursorPosition.y + 1
-            guard nextLineIndex < lines.count else { return cursorPosition }
-            return findCursorPositionOfNextWordStart(lines: lines, cursorPosition: CursorPosition(x: 0, y: nextLineIndex))
-        }
-    } else {
-        let nextLineIndex = cursorPosition.y + 1
-        guard nextLineIndex < lines.count else { return cursorPosition }
-        return findCursorPositionOfNextWordStart(lines: lines, cursorPosition: CursorPosition(x: 0, y: nextLineIndex))
-    }
-}
-
 private func reduceNormalMode(state: inout TextEditorState, action: TextEditorAction.Normal) {
     switch action {
     case .jumpWordForward:
         state.cursorPos = findCursorPositionOfNextWordStart(
-            lines: state.bufferLines, 
+            lines: state.bufferLines,
             cursorPosition: state.cursorPos
         )
     case .jumpWordBackward:
-        break // TODO
+        state.cursorPos = findCursorPositionOfPreviousWordStart(
+            lines: state.bufferLines,
+            cursorPosition: state.cursorPos
+        )
     case .up:
         let newY = clamp(state.cursorPos.y - 1, from: 0, to: state.bufferLines.count - 1)
         let newLine = state.bufferLines[newY]
@@ -210,6 +218,25 @@ private func reduceCommandMode(state: inout TextEditorState, action: TextEditorA
     }
 }
 
+private func reduceFilePicker(
+    state: inout TextEditorState,
+    action: TextEditorAction.FilePicker
+) {
+    guard case let .filePicker(picker) = state.floatingPanel else { assertionFailure(); return }
+    switch action {
+    case let .append(char):
+        var newPicker = picker
+        newPicker.text += char
+        state.floatingPanel = .filePicker(newPicker)
+    case .removeLast:
+        var newPicker = picker
+        if !newPicker.text.isEmpty {
+            newPicker.text.removeLast()
+        }
+        state.floatingPanel = .filePicker(newPicker)
+    }
+}
+
 func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
     switch action {
     case let .insert(insertAction):
@@ -221,13 +248,64 @@ func reduceTextEditor(state: inout TextEditorState, action: TextEditorAction) {
     case let .command(commandAction):
         assert(state.mode == .command)
         reduceCommandMode(state: &state, action: commandAction)
+    case let .filePicker(filePickerAction):
+        guard case .filePicker = state.floatingPanel else { assertionFailure(); return }
+        reduceFilePicker(state: &state, action: filePickerAction)
+    case .toggleFilePicker:
+        if state.floatingPanel == nil {
+            state.floatingPanel = .filePicker(Picker(
+                text: "", 
+                items: mockFilePickerItems()
+            ))
+        } else {
+            state.floatingPanel = nil
+        }
     }
 }
 
 private let bottomLinesHeight = 2 // statusLine + cmdLine
 
+private func mockFilePickerItems() -> [String] {
+    [
+        "README.md",
+        "src/main.swift",
+        "src/TextEditorState.swift",
+        "src/TextEditorAction.swift",
+        "src/TextEditorView.swift",
+        "src/TextEditorView+Render.swift",
+        "src/TextEditorView+Input.swift",
+        "src/TextEditorView+Action.swift",
+        "src/TextEditorView+State.swift",
+        "src/TextEditorView+Mode.swift",
+        "src/TextEditorView+Cursor.swift",
+        "src/TextEditorView+FilePicker.swift",
+        "src/TextEditorView+Command.swift",
+        "src/TextEditorView+Normal.swift",
+        "src/TextEditorView+Insert.swift",
+        "src/TextEditorView+Render+StatusLine.swift",
+        "src/TextEditorView+Render+CmdLine.swift",
+        "src/TextEditorView+Render+Buffer.swift",
+    ]
+}
+
 extension TextEditorAction {
-    init?(key: Int32, mode: Mode) {
+    init?(key: Int32, mode: Mode, floatingPanel: FloatingPanel?) {
+        if key == 265 {
+            self = .toggleFilePicker
+            return
+        }
+        if let floatingPanel = floatingPanel {
+            switch floatingPanel {
+            case .filePicker:
+                switch key {
+                case 263: // Backspace
+                    self = .filePicker(.removeLast)
+                default:
+                    self = .filePicker(.append(char: "\(UnicodeScalar(UInt32(key))!)"))
+                }
+            }
+            return
+        }
         switch mode {
         case .normal:
             switch key {
